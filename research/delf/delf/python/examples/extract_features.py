@@ -26,16 +26,12 @@ import sys
 import time
 import argparse
 import numpy as np
+from hashlib import md5
 import tensorflow as tf
 from google.protobuf import text_format
 from tensorflow.python.platform import app
 
-from delf import delf_config_pb2
-from delf import feature_extractor
-from delf import feature_io
-from delf import feature_pb2
-
-cmd_args = None
+from delf import delf_config_pb2, feature_extractor, feature_io, feature_pb2
 
 # Extension of feature files.
 _DELF_EXT = '.delf'
@@ -43,26 +39,18 @@ _DELF_EXT = '.delf'
 # Pace to report extraction log.
 _STATUS_CHECK_ITERATIONS = 100
 
-
-def _ReadImageList(list_path):
-  with tf.gfile.GFile(list_path, 'r') as f:
-    image_paths = f.readlines()
+def main(*args):
+  args = parse_args()
   
-  return [entry.rstrip() for entry in image_paths]
-
-
-def main(args):
   tf.logging.set_verbosity(tf.logging.INFO)
   
   # Read list of images.
-  tf.logging.info('Reading list of images...')
-  image_paths = _ReadImageList(cmd_args.list_images_path)
+  image_paths = [path.rstrip() for path in sys.stdin]
   num_images = len(image_paths)
-  tf.logging.info('done! Found %d images', num_images)
   
   # Parse DelfConfig proto.
   config = delf_config_pb2.DelfConfig()
-  with tf.gfile.FastGFile(cmd_args.config_path, 'r') as f:
+  with tf.gfile.FastGFile(args.config_path, 'r') as f:
     text_format.Merge(f.read(), config)
   
   # Tell TensorFlow that the model will be built into the default Graph.
@@ -100,21 +88,25 @@ def main(args):
       start = time.clock()
       tf.logging.info('Starting to extract DELF features from images...')
       for i in range(num_images):
-        if i % _STATUS_CHECK_ITERATIONS == 0:
-          elapsed = (time.clock() - start)
-          tf.logging.info('Processing image %d out of %d, last %d images took %f seconds', i, num_images, _STATUS_CHECK_ITERATIONS, elapsed)
-          start = time.clock()
         
         # Get next image.
         im = sess.run(image_tf)
         
         # If descriptor already exists, skip its computation.
-        out_desc_filename = os.path.splitext(os.path.basename(image_paths[i]))[0] + _DELF_EXT
-        out_desc_fullpath = os.path.join(cmd_args.output_dir, out_desc_filename)
+        if args.hash_filenames:
+          out_desc_filename = md5(image_paths[i]).hexdigest()
+        else:
+          out_desc_filename = os.path.splitext(os.path.basename(image_paths[i]))[0]
         
-        if tf.gfile.Exists(out_desc_fullpath):
-          tf.logging.info('Skipping %s', image_paths[i])
-          continue
+        out_desc_fullpath = os.path.join(args.output_dir, out_desc_filename  + _DELF_EXT)
+        tf.logging.info('%s -> %s' % (image_paths[i], out_desc_fullpath))
+        
+        lookup[image_paths[i]] = out_desc_fullpath
+        
+        if args.lazy:
+          if tf.gfile.Exists(out_desc_fullpath):
+            tf.logging.info('Skipping %s', image_paths[i])
+            continue
         
         # Extract and save features.
         (locations_out, descriptors_out, feature_scales_out, attention_out) = sess.run(
@@ -131,14 +123,17 @@ def main(args):
       # Finalize enqueue threads.
       coord.request_stop()
       coord.join(threads)
+      
+      json.dump(lookup, open(args.lookup_path, 'w'))
 
 def parse_args():
   parser = argparse.ArgumentParser()
-  parser.add_argument('--config_path', type=str, default='delf_config_example.pbtxt')
-  parser.add_argument('--list_images_path', type=str, default='list_images.txt')
-  parser.add_argument('--output_dir', type=str, default='test_features')
+  parser.add_argument('--config-path', type=str, default='delf_config_example.pbtxt')
+  parser.add_argument('--output-dir', type=str, default='test_features')
+  parser.add_argument('--lookup-path', type=str, default='lookup.json')
+  parser.add_argument('--hash-filenames', action="store_true")
+  parser.add_argument('--lazy', action="store_true")
   return parser.parse_args()
 
 if __name__ == '__main__':
-  args = parse_args()
-  app.run(main=main, argv=[args])
+  app.run(main=main)

@@ -14,21 +14,13 @@
 # ==============================================================================
 """DELF feature extractor.
 """
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
+from __future__ import absolute_import, division, print_function
+from delf import datum_io, delf_v1, delf_config_pb2
+from ..external import box_list, box_list_ops
 
-from delf import datum_io
-from delf import delf_v1
-from delf import delf_config_pb2
-from object_detection.core import box_list
-from object_detection.core import box_list_ops
 import tensorflow as tf
 
-
-def NormalizePixelValues(image,
-                         pixel_value_offset=128.0,
-                         pixel_value_scale=128.0):
+def NormalizePixelValues(image, pixel_value_offset=128.0, pixel_value_scale=128.0):
   """Normalize image pixel values.
 
   Args:
@@ -75,10 +67,7 @@ def CalculateKeypointCenters(boxes):
   Returns:
     centers: [N, 2] float tensor.
   """
-  return tf.divide(
-      tf.add(
-          tf.gather(boxes, [0, 1], axis=1), tf.gather(boxes, [2, 3], axis=1)),
-      2.0)
+  return tf.divide(tf.add(tf.gather(boxes, [0, 1], axis=1), tf.gather(boxes, [2, 3], axis=1)), 2.0)
 
 
 def ExtractKeypointDescriptor(image, layer_name, image_scales, iou,
@@ -131,12 +120,7 @@ def ExtractKeypointDescriptor(image, layer_name, image_scales, iou,
   else:
     raise ValueError('Unsupported layer_name.')
 
-  def _ProcessSingleScale(scale_index,
-                          boxes,
-                          features,
-                          scales,
-                          scores,
-                          reuse=True):
+  def _ProcessSingleScale(scale_index, boxes, features, scales, scores, reuse=True):
     """Resize the image and run feature extraction and keypoint selection.
 
        This function will be passed into tf.while_loop() and be called
@@ -232,16 +216,14 @@ def ExtractKeypointDescriptor(image, layer_name, image_scales, iou,
   feature_boxes.add_field('scores', output_scores)
 
   nms_max_boxes = tf.minimum(max_feature_num, feature_boxes.num_boxes())
-  final_boxes = box_list_ops.non_max_suppression(feature_boxes, iou,
-                                                 nms_max_boxes)
+  final_boxes = box_list_ops.non_max_suppression(feature_boxes, iou, nms_max_boxes)
 
   return (final_boxes.get(), final_boxes.get_field('scales'),
           final_boxes.get_field('features'), tf.expand_dims(
               final_boxes.get_field('scores'), 1))
 
 
-def BuildModel(layer_name, attention_nonlinear, attention_type,
-               attention_kernel_size):
+def BuildModel(layer_name, attention_nonlinear, attention_type, attention_kernel_size):
   """Build the DELF model.
 
   This function is helpful for constructing the model function which will be fed

@@ -18,7 +18,6 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-# pylint: disable=unused-import
 from delf.protos import datum_pb2
 from delf.protos import delf_config_pb2
 from delf.protos import feature_pb2
@@ -26,4 +25,4 @@ from delf.python import datum_io
 from delf.python import delf_v1
 from delf.python import feature_extractor
 from delf.python import feature_io
-# pylint: enable=unused-import
+

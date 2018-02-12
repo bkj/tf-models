@@ -21,9 +21,7 @@ geometric verification using RANSAC.
 The DELF features can be extracted using the extract_features.py script.
 """
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
+from __future__ import absolute_import, division, print_function
 
 import sys
 import argparse
@@ -31,6 +29,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.python.platform import app
 
+from rsub import *
 import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
 
@@ -42,50 +41,55 @@ from skimage.transform import AffineTransform
 
 from delf import feature_io
 
-def main():
-  tf.logging.set_verbosity(tf.logging.INFO)
+
+def parse_args():
+  parser = argparse.ArgumentParser()
+  parser.add_argument('--image_1_path', type=str, default='queries/surf0.jpg')
+  parser.add_argument('--image_2_path', type=str, default='queries/surf2.jpg')
+  parser.add_argument('--features_1_path', type=str, default='_results/queries/surf0.delf')
+  parser.add_argument('--features_2_path', type=str, default='_results/queries/surf2.delf')
+  parser.add_argument('--output_image', type=str, default='test_match.png')
+  parser.add_argument('--distance_threshold', type=float, default=0.8)
+  return parser.parse_args()
+
+
+def main(*args):
+  
+  args = parse_args()
   
   # Read features.
-  locations_1, _, descriptors_1, _, _ = feature_io.ReadFromFile(args.features_1_path)
+  locations_1, _, descriptors_1, attention_1, _ = feature_io.ReadFromFile(args.features_1_path)
+  locations_2, _, descriptors_2, attention_2, _ = feature_io.ReadFromFile(args.features_2_path)
+  
   num_features_1 = locations_1.shape[0]
-  tf.logging.info("Loaded image 1's %d features" % num_features_1)
-  
-  locations_2, _, descriptors_2, _, _ = feature_io.ReadFromFile(args.features_2_path)
   num_features_2 = locations_2.shape[0]
-  tf.logging.info("Loaded image 2's %d features" % num_features_2)
   
-  # Find nearest-neighbor matches using a KD tree.
   d1_tree = cKDTree(descriptors_1)
   distances, indices = d1_tree.query(descriptors_2, distance_upper_bound=args.distance_threshold)
   
-  # Select feature locations for putative matches.
-  locations_2_to_use = np.array([
-      locations_2[i,] for i in range(num_features_2) if indices[i] != num_features_1
-  ])
-  locations_1_to_use = np.array([
-      locations_1[indices[i],] for i in range(num_features_2) if indices[i] != num_features_1
-  ])
+  has_match          = distances != np.inf
+  locations_1_to_use = locations_1[indices[has_match]]
+  locations_2_to_use = locations_2[has_match]
   
-  # Perform geometric verification using RANSAC.
-  model_robust, inliers = ransac(
-      (locations_1_to_use, locations_2_to_use),
-      AffineTransform,
-      min_samples=3,
-      residual_threshold=20,
-      max_trials=1000
+  _, inliers = ransac(
+      (locations_1_to_use, locations_2_to_use), AffineTransform, min_samples=3, residual_threshold=20, max_trials=1000
   )
   
-  tf.logging.info('Found %d inliers' % sum(inliers))
+  if inliers is None:
+    raise Exception('match_images.py: inliers is None')
+  else:
+    print('number of inliers -> %d' % len(inliers))
   
-  # Visualize correspondences, and save to file.
+  # --
+  # Plot
+  
   fig, ax = plt.subplots()
-  img_1 = mpimg.imread(args.image_1_path)
-  img_2 = mpimg.imread(args.image_2_path)
+  
   inlier_idxs = np.nonzero(inliers)[0]
   plot_matches(
       ax,
-      img_1,
-      img_2,
+      mpimg.imread(args.image_1_path),
+      mpimg.imread(args.image_2_path),
       locations_1_to_use,
       locations_2_to_use,
       np.column_stack((inlier_idxs, inlier_idxs)),
@@ -96,16 +100,5 @@ def main():
   plt.savefig(args.output_image)
 
 
-def parse_args():
-  parser = argparse.ArgumentParser()
-  parser.add_argument('--image_1_path', type=str, default='test_images/image_1.jpg')
-  parser.add_argument('--image_2_path', type=str, default='test_images/image_2.jpg')
-  parser.add_argument('--features_1_path', type=str, default='test_features/image_1.delf')
-  parser.add_argument('--features_2_path', type=str, default='test_features/image_2.delf')
-  parser.add_argument('--output_image', type=str, default='test_match.png')
-  parser.add_argument('--distance_threshold', type=float, default=0.8)
-  return parser.parse_args()
-
 if __name__ == '__main__':
-  args = parse_args()
   app.run(main=main)
