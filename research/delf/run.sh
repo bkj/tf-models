@@ -13,8 +13,6 @@ pip install --ignore-installed --upgrade $URL
 pip install matplotlib scipy scikit-image
 
 cd ../slim && pip install -e . && cd ../delf
-cd .. && export PYTHONPATH=$PYTHONPATH:`pwd` && cd ./delf
-
 
 protoc delf/protos/*.proto --python_out=.
 pip install -e .
