@@ -22,4 +22,6 @@ setup(
     include_package_data=True,
     packages=find_packages(),
     description='DELF (DEep Local Features)',
+    package_data={'': ['delf_config_example.pbtxt']},
+    zip_safe=False,
 )

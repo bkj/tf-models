@@ -25,6 +25,9 @@ mkdir parameters && cd parameters
 wget http://download.tensorflow.org/models/delf_v1_20171026.tar.gz
 tar -xvzf delf_v1_20171026.tar.gz
 
+mkdir -p ~/.delf/parameters
+cp -r parameters/* ~/.delf/parameters
+
 # --
 # Download data
 
