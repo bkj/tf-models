@@ -256,8 +256,7 @@ def DelfFeaturePostProcessing(boxes, descriptors, config):
       else:
         pca_variances = None
       
-      final_descriptors = ApplyPcaAndWhitening(final_descriptors, pca_matrix, pca_mean, pca_dim,
-          config.delf_local_config.pca_parameters.use_whitening, pca_variances)
+      final_descriptors = ApplyPcaAndWhitening(final_descriptors, pca_matrix, pca_mean, pca_dim,config.delf_local_config.pca_parameters.use_whitening, pca_variances)
       
       final_descriptors = tf.nn.l2_normalize(final_descriptors, axis=1, name='pca_l2_normalization')
 

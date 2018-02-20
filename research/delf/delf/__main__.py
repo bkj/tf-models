@@ -70,7 +70,11 @@ def main(*args):
       raw_descriptors          = graph.get_tensor_by_name('features:0')
       feature_scales           = graph.get_tensor_by_name('scales:0')
       attention_with_extra_dim = graph.get_tensor_by_name('scores:0')
+      # resnet = graph.get_tensor_by_name('resnet_v1_50/block3/unit_6/bottleneck_v1/Relu:0')
       attention                = tf.reshape(attention_with_extra_dim, [tf.shape(attention_with_extra_dim)[0]])
+      
+      # for name in [n.name for n in tf.get_default_graph().as_graph_def().node]:
+      #   print(name, file=sys.stderr)
       
       locations, descriptors = feature_extractor.DelfFeaturePostProcessing(boxes, raw_descriptors, config)
       
@@ -103,6 +107,8 @@ def main(*args):
                  input_image_scales     : list(config.image_scales),
                  input_max_feature_num  : config.delf_local_config.max_feature_num
              })
+        
+        # print(resnet_out.shape, file=sys.stderr)
         
         if not args.to_h5:
           _ = feature_io.WriteToFile(outpath, locations_out, feature_scales_out, descriptors_out, attention_out)
